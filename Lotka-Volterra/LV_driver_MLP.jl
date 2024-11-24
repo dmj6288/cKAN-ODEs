@@ -67,7 +67,7 @@ pM_axis = getaxes(ComponentArray(p_))
 p=Float32.(deepcopy(pM_data)./1e5)
 # Define Neural ODE with MLP
 
-train_node = NeuralODE(MLP, tspan_train, Tsit5(), saveat = t_train); #neural ode
+train_node      = NeuralODE(MLP, tspan_train, Tsit5(), saveat = t_train); #neural ode
 train_node_test = NeuralODE(MLP, tspan, Tsit5(), saveat = t); #neural ode
 
 function predict(p)
@@ -151,28 +151,28 @@ function plotter(l, p_list, epoch)
 end
 
 iters=tqdm(1:N_iter-i_current)
- for i in iters
-    global i_current
+for i in iters
+   global i_current
     
-    # gradient computation
-    grad = Zgrad(loss, p)[1] 
+   # gradient computation
+   grad = Zgrad(loss, p)[1] 
 
-    #model update
-    update!(opt, p, grad)
+   #model update
+   update!(opt, p, grad)
 
-    #loss metrics
-    loss_curr=deepcopy(loss(p))
-    loss_curr_test=deepcopy(loss_test(p))
-    append!(l, [loss_curr])
-    append!(l_test, [loss_curr_test])
-    append!(p_list, [deepcopy(p)])
-    set_description(iters, string("Loss:", loss_curr))
-    i_current = i_current + 1
+   #loss metrics
+   loss_curr=deepcopy(loss(p))
+   loss_curr_test=deepcopy(loss_test(p))
+   append!(l, [loss_curr])
+   append!(l_test, [loss_curr_test])
+   append!(p_list, [deepcopy(p)])
+   set_description(iters, string("Loss:", loss_curr))
+   i_current = i_current + 1
 
 
-    if i%n_plot==0
-        plotter(l, p_list, i)
-    end
+   if i%n_plot==0
+       plotter(l, p_list, i)
+   end
 
     
 end
