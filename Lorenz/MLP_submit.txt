@@ -1,0 +1,22 @@
+#!/bin/bash
+#SBATCH --job-name=MLP_Lorenz                        # Job name
+#SBATCH --output=slurm_archive/%j_julia_job.out      # Standard output file
+#SBATCH --error=slurm_archive/%j_julia_job.err       # Standard error file
+#SBATCH --partition=batch            # Partition to use (change as needed)
+#SBATCH --nodes=1                    # Number of nodes
+#SBATCH --ntasks=1                   # Number of tasks
+#SBATCH --cpus-per-task=4            # CPUs per task
+#SBATCH --time=02:00:00              # Time limit (hh:mm:ss)
+#SBATCH --mem=32GB                   # Memory per node
+#SBATCH --mail-type=END,FAIL         # Mail on job end or fail
+#SBATCH --mail-user=your_email@domain.com # Your email address
+
+# Load Julia module if required (adjust module name as per your cluster setup)
+module load julia
+
+# Navigate to the directory containing your Julia script
+cd /home/dennis00/cKAN-ODEs/Lorenz
+
+# Run the Julia script
+julia LV_driver_MLP.jl
+

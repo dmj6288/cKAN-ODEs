@@ -11,6 +11,13 @@ using Plots
 using ProgressBars
 using Zygote: gradient as Zgrad
 
+# Load the KAN package from https://github.com/vpuri3/KolmogorovArnold.jl
+
+include("src/KolmogorovArnold.jl")
+using .KolmogorovArnold
+
+#load the activation function getter (written for this project, see the corresponding script):
+include("Activation_getter.jl")
 
 #this is a fix for an issue with an author's computer. Feel free to remove.
 ENV["GKSwstype"] = "100"
@@ -20,27 +27,23 @@ ENV["GKSwstype"] = "100"
  #also, pruning occurs upon restart, not during the training loop.
 #is_pruning, while is_restart is true and there is a load-able checkpoint, 
 #will prune the loaded network before resuming training.
-is_restart=false
-is_prune=false
-sparse_on=0 #set this to 1 and see reg_loss() and prune() functions if sparsity is desired 
+
+is_restart = false
+is_prune   = false
+
+sparse_on  = 0 #set this to 1 and see reg_loss() and prune() functions if sparsity is desired 
 
 # Directories
-dir         = @__DIR__
-dir         = dir*"/"
+dir             = @__DIR__
+dir             = dir*"/"
 cd(dir)
-fname       = "LV_kanode"
-add_path    = "results_kanode/"
-figpath=dir*add_path*"figs"
-ckptpath=dir*add_path*"checkpoints"
+fname           = "LV_kanode"
+add_path        = "results_kanode/"
+figpath         = dir*add_path*"figs"
+ckptpath        = dir*add_path*"checkpoints"
+
 mkpath(figpath)
 mkpath(ckptpath)
-
-# Load the KAN package from https://github.com/vpuri3/KolmogorovArnold.jl
-include("src/KolmogorovArnold.jl")
-using .KolmogorovArnold
-#load the activation function getter (written for this project, see the corresponding script):
-include("Activation_getter.jl")
-
 
 #define LV
 function lotka!(du, u, p, t)
@@ -49,113 +52,158 @@ function lotka!(du, u, p, t)
     du[2] = γ * u[1] * u[2] - δ * u[2]
 end
 
+# define Lorenz
+function lorenz!(du, u, p, t)
+    # Extract state variables
+    x, y, z = u
+    # Standard parameters for Lorenz attractor
+    σ = 10.0
+    ρ = 28.0
+    β = 8.0 / 3.0
+
+    σ, ρ, β = p
+
+    # Lorenz system equations
+    du[1] = σ * (y - x)
+    du[2] = x * (ρ - z) - y
+    du[3] = x * y - β * z
+end
+
 function prune(p, kan_curr, layer_width, grid_size, pM_axis, theta=1e-2)
+
     #pruning function used to sparsify KAN-ODEs (i.e. delete negligible connections)
     #theta corresponds to gamma_pr in the manuscript (value of 1e-2)
     #not optimized - only runs a few times per training cycle, so extreme efficiency is not important
     #make sure to turn regularization on (sparse_on=1 above) before pruning, otherwise it's unlikely anything will prune bc the KAN is not sparse
 
     #load current save
-    load_file=dir*add_path*"checkpoints/"*fname*"_results.mat"
-    p_list_=matread(load_file)["p_list"]
-    p_list=[]
+    load_file = dir*add_path*"checkpoints/"*fname*"_results.mat"
+    p_list_   = matread(load_file)["p_list"]
+    p_list    = []
+
     for j = 1:size(p_list_,1)
         append!(p_list, [p_list_[j, :, 1]])
     end
-    p=p_list_[end, :, 1]
-    l=matread(load_file)["loss"]
-    l_test=matread(load_file)["loss_test"]
+
+    p      = p_list_[end, :, 1]
+    l      = matread(load_file)["loss"]
+    l_test = matread(load_file)["loss_test"]
 
     
-    pM_= ComponentArray(p,pM_axis)
+    pM_    = ComponentArray(p,pM_axis)
     pM_new = [pM_.layer_1, pM_.layer_2]
+
     #this calls the code from Activation_getter.jl to compute the individual activation function values (rather than the matrix multiplied outputs):
+
     activations_x, activations_y, activations_second=activation_getter(pM_, pM_new, kan_curr, grid_size)
 
+    nodes_to_eval = 1:layer_width
+    nodes_to_keep = []
 
-    nodes_to_eval=1:layer_width
-    nodes_to_keep=[]
     for i in nodes_to_eval
-        input_score=maximum([maximum(abs.(activations_x[i, :])), maximum(abs.(activations_y[i, :]))])
-        output_score=maximum(maximum(abs.(activations_second[(i-1)*2+1:(i-1)*2+2, :])))
+        input_score   = maximum([maximum(abs.(activations_x[i, :])), maximum(abs.(activations_y[i, :]))])
+        output_score  = maximum(maximum(abs.(activations_second[(i-1)*2+1:(i-1)*2+2, :])))
+
         if minimum([input_score, output_score])>theta
             append!(nodes_to_keep, i)
         end
     end
 
-
     ##re-initialize KAN, but with the smaller size
 
-    layer_width=length(nodes_to_keep)
-    kan1 = Lux.Chain(
-        KDense( 2, layer_width, grid_size; use_base_act = true, basis_func, normalizer),
-        KDense(layer_width,  2, grid_size; use_base_act = true, basis_func, normalizer),
+    layer_width = length(nodes_to_keep)
+    kan1        = Lux.Chain(
+        KDense( 3, layer_width, grid_size; use_base_act = true, basis_func, normalizer),
+        KDense(layer_width,  3, grid_size; use_base_act = true, basis_func, normalizer),
     )
 
     ##and save only those parameters into it
-    pm1c=pM.layer_1.C[nodes_to_keep, :]
-    pm1w=pM.layer_1.W[nodes_to_keep, :]
-    pm2c=zeros(2, grid_size*layer_width)
-    count=0
+
+    pm1c  = pM.layer_1.C[nodes_to_keep, :]
+    pm1w  = pM.layer_1.W[nodes_to_keep, :]
+    pm2c  = zeros(2, grid_size*layer_width)
+    count = 0
+
     for i in nodes_to_keep
         count+=1
-        pm2c[:, (count-1)*grid_size+1:count*grid_size]=pM.layer_2.C[:, (i-1)*grid_size+1:i*grid_size]
+        pm2c[:, (count-1)*grid_size+1:count*grid_size] = pM.layer_2.C[:, (i-1)*grid_size+1:i*grid_size]
     end
-    pm2w=pM.layer_2.C[:, nodes_to_keep]
 
-    pM_new=(layer_1=(C=pm1c, W=pm1w), layer_2=(C=pm2c, W=pm2w))
+    pm2w = pM.layer_2.C[:, nodes_to_keep]
+
+    pM_new = (layer_1=(C=pm1c, W=pm1w), layer_2=(C=pm2c, W=pm2w))
     return pM_new, kan1, layer_width
+
 end
 
+println("Function definitions complete")
+
 #data generation parameters
-timestep=0.1
-n_plot_save=1000
-rng = Random.default_rng()
+
+timestep    = 0.1
+n_plot      = 1000
+n_save      = 50
+rng         = Random.default_rng()
+
 Random.seed!(rng, 0)
-tspan = (0.0, 14)
-tspan_train=(0.0, 3.5)
-u0 = [1, 1]
-p_ = Float32[1.5, 1, 1, 3]
-prob = ODEProblem(lotka!, u0, tspan, p_)
 
-#generate training data, split into train/test
-solution = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
-end_index=Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
-t = solution.t #full dataset
-t_train=t[1:end_index] #training cut
-X = Array(solution)
-Xn = deepcopy(X) 
+tspan       = Float32.([0.0, 14])
+tspan_train = Float32.([0.0, 3.5])
 
+# Initial Condition
 
-basis_func = rbf      # rbf, rswaf
+u0          = Float32.([1., 1., 1.])
+p_          = Float32[10.0, 28.0, 8.0/3.0]
+
+# Defining the ODE problem
+
+prob        = ODEProblem(lorenz!, Float64.(u0), tspan, Float64.(p_))
+
+# Integration
+
+solution    = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
+end_index   = Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))                # number of training time points
+t           = Float32.(solution.t)                                                    # full dataset
+t_train     = t[1:end_index]                                                          # training cut
+X           = Array(solution)
+Xn          = deepcopy(X)
+
+println("Truth valus generated")
+
+basis_func = rbf       # rbf, rswaf
 normalizer = tanh_fast # sigmoid(_fast), tanh(_fast), softsign
 
 # Define KAN-ODEs
 ###layer_width and grid_size can be modified here to replicate the testing in section A2 of the manuscript
 
 num_layers=2 #defined just to save into .mat for plotting
-layer_width=10
-grid_size=5
+
+layer_width = 10
+grid_size   = 5
 kan1 = Lux.Chain(
-    KDense( 2, layer_width, grid_size; use_base_act = true, basis_func, normalizer),
-    KDense(layer_width,  2, grid_size; use_base_act = true, basis_func, normalizer),
+    KDense( 3, layer_width, grid_size; use_base_act = true, basis_func, normalizer),
+    KDense(layer_width,  3, grid_size; use_base_act = true, basis_func, normalizer),
 )
+
 pM , stM  = Lux.setup(rng, kan1)
 
 #Can restart from a previous training result, with is_restart defined as true above
+
 if is_restart==true
-    load_file=dir*add_path*"checkpoints/"*fname*"_results.mat"
-    p_list_=matread(load_file)["p_list"]
-    p_list=[]
+    load_file = dir*add_path*"checkpoints/"*fname*"_results.mat"
+    p_list_   = matread(load_file)["p_list"]
+    p_list    = []
+
     for j = 1:size(p_list_,1)
         append!(p_list, [p_list_[j, :, 1]])
     end
-    p=p_list_[end, :, 1]
-    l=matread(load_file)["loss"]
-    l_test=matread(load_file)["loss_test"]
+
+    p      = p_list_[end, :, 1]
+    l      = matread(load_file)["loss"]
+    l_test = matread(load_file)["loss_test"]
 else 
-    l = []
-    l_test=[]
+    l      = []
+    l_test = []
     p_list = []
 end
 
@@ -177,25 +225,27 @@ p = (deepcopy(pM_data))./1e5
 
 ###########KAN is fully defined. Now, define the KAN ODE wrapped around it.
 
-train_node = NeuralODE(kan1, tspan_train, Tsit5(), saveat = t_train); 
+train_node      = NeuralODE(kan1, tspan_train, Tsit5(), saveat = t_train); 
 train_node_test = NeuralODE(kan1, tspan, Tsit5(), saveat = t); #only difference is the time span
+
 function predict(p)
     Array(train_node(u0, p, stM)[1])
 end
 
 #regularization loss (see Eq. 12 in manuscript )
 function reg_loss(p, act_reg=1.0, entropy_reg=1.0)
-    l1_temp=(abs.(p))
-    activation_loss=sum(l1_temp)
-    entropy_temp=l1_temp/activation_loss
-    entropy_loss=-sum(entropy_temp.*log.(entropy_temp))
-    total_reg_loss=activation_loss*act_reg+entropy_loss*entropy_reg
+    l1_temp         = (abs.(p))
+    activation_loss = sum(l1_temp)
+    entropy_temp    = l1_temp/activation_loss
+    entropy_loss    =-sum(entropy_temp.*log.(entropy_temp))
+    total_reg_loss  = activation_loss*act_reg+entropy_loss*entropy_reg
     return total_reg_loss
 end
 
 #overall loss
+
 function loss(p)
-    loss_temp=mean(abs2, Xn[:, 1:end_index].- predict(ComponentArray(p,pM_axis)))
+    loss_temp = mean(abs2, Xn[:, 1:end_index].- predict(ComponentArray(p,pM_axis)))
     if sparse_on==1
         loss_temp+=reg_loss(p, 5e-4, 0) #if we have sparsity enabled, add the reg loss
     end

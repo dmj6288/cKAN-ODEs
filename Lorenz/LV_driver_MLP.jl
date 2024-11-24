@@ -11,6 +11,8 @@ using Plots
 using ProgressBars
 using Zygote: gradient as Zgrad
 
+println("Packages imported")
+
 #this is a fix for an issue with an author's computer. Feel free to remove.
 ENV["GKSwstype"] = "100"
 
@@ -51,11 +53,15 @@ function lorenz!(du, u, p, t)
     du[3] = x * y - β * z
 end
 
+println("Function definitions complete")
+
 #data generation parameters
-timestep = 0.1
-n_plot   = 1000
-n_save   = 50
-rng      = Random.default_rng()
+
+timestep    = 0.1
+n_plot      = 1000
+n_save      = 50
+rng         = Random.default_rng()
+
 Random.seed!(rng, 0)
 
 tspan       = Float32.([0.0, 14])
@@ -79,13 +85,14 @@ t_train     = t[1:end_index]                                                    
 X           = Array(solution)
 Xn          = deepcopy(X) 
 
+println("Truth valus generated")
 
 # Define MLP 
 ###As in KANODE code, the layers can be modified here to recreate the testing in section A2 of the manuscript
 
 # Defining a vanilla MLP with tanh() activation and dense layers
 
-MLP         = Lux.Chain(Lux.Dense(2 => 50, tanh), Lux.Dense(50 => 2)) #like in https://github.com/RajDandekar/MSML21_BayesianNODE/blob/main/BayesiaNODE_SGLD_LV.jl
+MLP         = Lux.Chain(Lux.Dense(3 => 50, tanh), Lux.Dense(50 => 3)) #like in https://github.com/RajDandekar/MSML21_BayesianNODE/blob/main/BayesiaNODE_SGLD_LV.jl
 
 ## **also note here that the KANODE and MLP-NODE codes use different packages.
 ## **so if the Dense command fails, make sure to use a different REPL (i.e. one that you did not previously run the KANODE code on)
@@ -147,31 +154,57 @@ function plotter(l, p_list, epoch)
     plt     = Plots.plot(l, yaxis=:log, label="train")     # Define a plot object for log transformed training loss
 
     plot!(l_test,           yaxis=:log, label="test")      # Plot test loss
-    xlabel!("Epoch")
-    ylabel!("Loss")
-    png(plt, string(figpath, "/loss.png"))
+    xlabel!("Epoch")                                       # Label x axis of test loss plot
+    ylabel!("Loss")                                        # Label y axis of test loss plot
+    png(plt, string(figpath, "/loss.png"))                 # Save test loss plot
+
+    # PRINT LOSSES
+
     print("minimum train loss: ")
     print(minimum(l))
     print("minimum test loss: ")
     print(minimum(l_test))
+	
+
+    # Find optimum parameter based on minimum training loss
 
     p_opt = p_list[idx_min]
+
+    # Define a new neural ODE
+
     train_node_ = NeuralODE(MLP, tspan, Tsit5(), saveat = timestep); #neural ode
+
+    # Truth
+
     pred_sol_true = solution
+
+    # Store last list of parameters
+
     p_curr = p_list[end]
+
+    # Simulate forward with current list of parameters
+
     pred_sol_kan = train_node_(u0, ComponentArray(p_curr,pM_axis), sT_)[1]
+
+    # Plot truth value
+
     plt=scatter(pred_sol_true, alpha = 0.75)
-    plot!(pred_sol_kan)
-    vline!([3.5], color=:black, label = "train/test split")
-    xlabel!("Time [s]")
-    ylabel!("x, y")
-    png(plt, string(figpath, "/training/results.png"))
+    plot!(pred_sol_kan)                                                       # Plot prediction
+    vline!([3.5], color=:black, label = "train/test split")                   # Add a vertical line at train split point
+    xlabel!("Time [s]")                                                       # Add an x-axis label
+    ylabel!("x, y")                                                           # Add a y-axis label
+    png(plt, string(figpath, "/training/results.png"))                        # Save training results
 
     #packaging various quantities, then saving them to a .mat file
-    p_list_ = zeros(size(p_list,1),size(p_list[1],1),size(p_list[1],2))
+
+    p_list_ = zeros(size(p_list,1), size(p_list[1],1), size(p_list[1],2) , size(p_list[1], 3))
+	
+    # STORE ALL PARAMETERS, TRAINING LOSSES AND TEST LOSSES
+
     for j = 1:size(p_list,1)
         p_list_[j,:,:] = p_list[j]
     end
+
     l_ = zeros(size(p_list,1))
     for j = 1:size(l,1)
         l_[j] = l[j]
@@ -181,42 +214,60 @@ function plotter(l, p_list, epoch)
     for j = 1:size(l,1)
         l_test_[j] = l_test[j]
     end
-    pred_sol_kan = train_node_(u0, ComponentArray(p_opt,pM_axis), sT_)[1]
-    file = matopen(dir*add_path*"checkpoints/"*fname*"_results_MLP.mat", "w")
-    write(file, "p_list", p_list_)
-    write(file, "loss", l_)
-    write(file, "loss_test", l_test_)
-    write(file, "kan_pred_t", pred_sol_kan.t)
-    write(file, "kan_pred_u1", reduce(hcat,pred_sol_kan.u)'[:, 1])
-    write(file, "kan_pred_u2", reduce(hcat,pred_sol_kan.u)'[:, 2])
+
+    pred_sol_kan = train_node_(u0, ComponentArray(p_opt,pM_axis), sT_)[1]                  #  Simulate forward with optimum parameters
+    file         = matopen(dir*add_path*"checkpoints/"*fname*"_results_MLP.mat", "w")      #  Initializa .mat export object
+
+    write(file, "p_list", p_list_)                                                         #  write lists of parameters
+    write(file, "loss", l_)                                                                #  write training losses
+    write(file, "loss_test", l_test_)                                                      #  write test losses
+    write(file, "kan_pred_t", pred_sol_kan.t)                                              #  write prediction time used
+
+    write(file, "kan_pred_u1", reduce(hcat,pred_sol_kan.u)'[:, 1])                 #  save state 1 from prediction
+    write(file, "kan_pred_u2", reduce(hcat,pred_sol_kan.u)'[:, 2])                 #  save state 2 from prediction
+    write(file, "kan_pred_u3", reduce(hcat,pred_sol_kan.u)'[:, 3])                 #  save state 3 from prediction	
+
     close(file)
 
 end
 
-iters=tqdm(1:N_iter-i_current)
+iters = tqdm(1:N_iter - i_current)
+
+println("Beginning training")
+
 for i in iters
+
    global i_current
+   println(i_current)
     
    # gradient computation
+
    grad = Zgrad(loss, p)[1] 
 
    #model update
+
    update!(opt, p, grad)
 
    #loss metrics
-   loss_curr=deepcopy(loss(p))
-   loss_curr_test=deepcopy(loss_test(p))
-   append!(l, [loss_curr])
+
+   loss_curr      = deepcopy(loss(p))
+   loss_curr_test = deepcopy(loss_test(p))
+
+   append!(l,      [loss_curr])
    append!(l_test, [loss_curr_test])
    append!(p_list, [deepcopy(p)])
+
    set_description(iters, string("Loss:", loss_curr))
    i_current = i_current + 1
 
-
    if i%n_plot==0
-       plotter(l, p_list, i)
-   end
 
+       plotter(l, p_list, i)
+       println(i_current)
+       println(loss_curr)
+       println(loss_curr_test)
+
+   end
     
 end
 
