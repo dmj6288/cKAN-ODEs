@@ -26,12 +26,14 @@ using .KolmogorovArnold
 include("Activation_getter.jl")
 
 ##########same initializtion as in the KANODE driver##########
-function lotka!(du, u, p, t)
-    α, β, γ, δ = p
-    du[1] = α * u[1] - β * u[2] * u[1]
-    du[2] = γ * u[1] * u[2] - δ * u[2]
-end
+function VDP!(du, u, p, t)
 
+    x, y = u
+    α, β, γ, δ = p
+    du[1] = y
+    du[2] = 8 * (1 - x^2) * y - x + 0.3 * cos(t)
+
+end
 
 function LV(u, p)
     α, β, γ, δ = p
@@ -53,7 +55,7 @@ tspan = (0.0, 14)
 tspan_train=(0.0, 3.5)
 u0 = [1, 1]
 p_ = Float32[1.5, 1, 1, 3]
-prob = ODEProblem(lotka!, u0, tspan, p_)
+prob = ODEProblem(VDP!, u0, tspan, p_)
 solution = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
 end_index=Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
 t = solution.t #full dataset
@@ -63,8 +65,8 @@ X = Array(solution)
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "LV_kanode"
-fname_mlp       = "LV_MLP"
+fname       = "rbf"
+fname_mlp       = "mlp"
 add_path    = "post_plots/"
 add_path_kan    = "results_kanode/"
 add_path_mlp    = "results_mlp/"

@@ -29,7 +29,7 @@ sparse_on=1 #set this to 1 and see reg_loss() and prune() functions if sparsity 
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "rbf_sparse"
+fname       = "rbf"
 add_path    = "results_kanode/"
 figpath=dir*add_path*"figs"
 ckptpath=dir*add_path*"checkpoints"
@@ -199,7 +199,7 @@ end
 function loss(p)
     loss_temp=mean(abs2, Xn[:, 1:end_index].- predict(ComponentArray(p,pM_axis)))
     if sparse_on==1
-        loss_temp+=reg_loss(p, 5e-4, 0) #if we have sparsity enabled, add the reg loss
+        loss_temp+=reg_loss(p, 1e-8, 0) #if we have sparsity enabled, add the reg loss
     end
     return loss_temp
 end
@@ -263,7 +263,7 @@ function plot_save(l, l_test, p_list, epoch)
     for j = 1:size(l,1)
         l_test_[j] = l_test[j]
     end
-    file = matopen(dir*add_path*"checkpoints/"*fname*"_results.mat", "w")
+    file = matopen(dir*add_path*"checkpoints/"*fname*"_results_reg1e_5_sparse.mat", "w")
     write(file, "p_list", p_list_)
     write(file, "loss", l_)
     write(file, "loss_test", l_test_)

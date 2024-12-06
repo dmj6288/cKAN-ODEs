@@ -54,5 +54,5 @@ function activation_getter_3x3(pM_, pM_new, kan1, grid_size)
         activations_second[(i-1)*3+1:i*3, :] = activations_curr'
     end
 
-    return activations_x, activations_y, activations_z, activations_second
+    return activations_x, activations_y, activations_z, activations_second, LV_samples_lay1, lay2, K
 end

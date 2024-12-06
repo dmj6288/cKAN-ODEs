@@ -33,10 +33,13 @@ using .KolmogorovArnold
 include("Activation_getter.jl")
 
 ##########same initializtion as in the KANODE driver##########
-function lotka!(du, u, p, t)
-    α, β, γ, δ = p
-    du[1] = α * u[1] - β * u[2] * u[1]
-    du[2] = γ * u[1] * u[2] - δ * u[2]
+function CSTR!(du, u, p, t)
+
+    X, S = u
+#    α, β, γ, δ = p
+    du[1] = 0.4 * (2 - S) - 5 * S * X/(0.5 + S + 5 * S^2)
+    du[2] = 5 * S * X/(0.5 + S + 5 * S^2) - 0.4 * X
+
 end
 
 
@@ -52,37 +55,39 @@ end
 #i.e. here the major pruning occurred at ~49000 epochs,
 #so we will search for the loss minimum after this point.
 #(written as 5000 because reporting was every 10 epochs in this truncated save)
-is_pruned=false
-loss_minimum_truncation=5000
+is_pruned               = true
+loss_minimum_truncation = 1
 
-timestep=0.1
-n_plot_save=100
-rng = Random.default_rng()
+timestep         = 0.1
+n_plot_save      = 100
+rng              = Random.default_rng()
 Random.seed!(rng, 0)
-tspan = (0.0, 14)
+tspan            = (0.0, 14)
 tspan_train=(0.0, 3.5)
-u0 = [1, 1]
-p_ = Float32[1.5, 1, 1, 3]
-prob = ODEProblem(lotka!, u0, tspan, p_)
-solution = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
-end_index=Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
-t = solution.t #full dataset
-t_train=t[1:end_index] #training cut
-X = Array(solution)
+u0               = [1, 1]
+p_               = Float32[1.5, 1, 1, 3]
+
+prob             = ODEProblem(CSTR!, u0, tspan, p_)
+solution         = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
+end_index        = Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
+t                = solution.t #full dataset
+t_train          = t[1:end_index] #training cut
+X                = Array(solution)
 
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "LV_kanode"
+
+fname           = "rbf_sparse_prune_results"
 fname_mlp       = "LV_MLP"
-add_path    = "post_plots/"
+add_path        = "post_plots/"
 add_path_kan    = "results_kanode/"
 add_path_mlp    = "results_mlp/"
-figpath=dir*add_path*"figs"
+figpath         = dir*add_path*"figs"
 mkpath(figpath)
 
 ##pruned save, provided in this repo
-load_file=dir*add_path_kan*"checkpoints/"*fname*"_results_pruned_3nodes_trunc.mat"
+load_file=dir*add_path_kan*"checkpoints/"*fname*".mat"
 
 loss_list_kan=matread(load_file)["loss"]
 loss_list_test_kan=matread(load_file)["loss_test"]
@@ -110,7 +115,7 @@ pM_axis = getaxes(ComponentArray(pM))
 
 ##more loading and processing
 param_count_prune=layer_width*grid_size*2*2+2*layer_width*2
-l_min=minimum(loss_list_kan[5000:end]) 
+l_min=minimum(loss_list_kan[loss_minimum_truncation:end]) 
 if is_pruned
     l_min=minimum(loss_list_kan[loss_minimum_truncation:end])
 end
@@ -118,10 +123,6 @@ idx_min = findfirst(x -> x == l_min, loss_list_kan)
 p_curr = p_list[idx_min,1:param_count_prune,1]
 pM_    = ComponentArray(p_curr,pM_axis)
 pM_new = [pM_.layer_1, pM_.layer_2]
-
-
-
-
 
 
 #this calls the code from Activation_getter.jl to compute the individual activation function values (rather than the matrix multiplied outputs):

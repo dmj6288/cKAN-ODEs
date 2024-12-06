@@ -1,0 +1,20 @@
+#!/bin/bash
+#SBATCH --job-name=CSTR_monod_gauss_sparse                        # Job name
+#SBATCH --output=slurm_archive/%j_CSTR_monod_gaussian_sparse.out      # Standard output file
+#SBATCH --error=slurm_archive/%j_CSTR_monod_gaussian_sparse.err       # Standard error file
+#SBATCH --nodes=1                    # Number of nodes
+#SBATCH --ntasks=1                   # Number of tasks
+#SBATCH --cpus-per-task=4            # CPUs per task
+#SBATCH --time=18:00:00              # Time limit (hh:mm:ss)
+#SBATCH --mem=16GB                   # Memory per node
+#SBATCH --mail-type=END,FAIL         # Mail on job end or fail
+#SBATCH --mail-user=your_email@domain.com # Your email address
+
+# Load Julia module if required (adjust module name as per your cluster setup)
+#module load julia
+
+# Navigate to the directory containing your Julia script
+cd /home/local/ADS/dennis00/Yi_Lab/Lab_WorkDir/Dennis/cKAN-ODEs/CSTR_monod
+
+# Run the Julia script
+julia gaussian_sparse.jl

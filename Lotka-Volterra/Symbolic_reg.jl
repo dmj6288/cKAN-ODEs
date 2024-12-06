@@ -142,7 +142,7 @@ options = SymbolicRegression.Options(
 
 #run EquationSearch for each activation to get the symbolic functions
 #After running Plotting.jl, these can be called in the repl individually for clearest results.
-#=
+
 #These two have three equations each (first layer)
 hallOfFame = EquationSearch(inputs_lay1[1, :]', activations_lay1_x', niterations=100, options=options)
 hallOfFame = EquationSearch(inputs_lay1[2, :]', activations_lay1_y', niterations=100, options=options)
@@ -153,7 +153,7 @@ hallOfFame = EquationSearch(inputs_lay2[2, :]', activations_lay2[3, :]', niterat
 hallOfFame = EquationSearch(inputs_lay2[2, :]', activations_lay2[4, :]', niterations=100, options=options)
 hallOfFame = EquationSearch(inputs_lay2[3, :]', activations_lay2[5, :]', niterations=100, options=options)
 hallOfFame = EquationSearch(inputs_lay2[3, :]', activations_lay2[6, :]', niterations=100, options=options)
-=#
+
 
 
 

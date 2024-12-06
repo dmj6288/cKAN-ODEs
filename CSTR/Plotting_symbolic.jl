@@ -54,12 +54,14 @@ using .KolmogorovArnold
 include("Activation_getter.jl")
 
 ##########same initializtion as in the KANODE driver##########
-function lotka!(du, u, p, t)
-    α, β, γ, δ = p
-    du[1] = α * u[1] - β * u[2] * u[1]
-    du[2] = γ * u[1] * u[2] - δ * u[2]
-end
+function CSTR!(du, u, p, t)
 
+    X, S = u
+#    α, β, γ, δ = p
+    du[1] = 0.4 * (2 - S) - 5 * S * X/(0.5 + S + 5 * S^2)
+    du[2] = 5 * S * X/(0.5 + S + 5 * S^2) - 0.4 * X
+
+end
 
 function LV(u, p)
     α, β, γ, δ = p
@@ -69,21 +71,21 @@ end
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "LV_kanode"
-fname_mlp       = "LV_MLP"
+fname       = "rbf"
+fname_mlp       = "mlp"
 add_path    = "post_plots/"
 add_path_kan    = "results_kanode/"
 add_path_mlp    = "results_mlp/"
 figpath=dir*add_path*"figs"
 mkpath(figpath)
 
-is_pruned=false #CHANGE THIS IF PLOTTING DENSE OR SPARSE KAN CONTOURS
+is_pruned=true #CHANGE THIS IF PLOTTING DENSE OR SPARSE KAN CONTOURS
 #true=sparse kan plotting (pretrained checkpoint provided, see load_file below)
 #false=dense kan plotting
 loss_minimum_truncation=5000
 
 if is_pruned==true
-    load_file=dir*add_path_kan*"checkpoints/"*fname*"_results_pruned_3nodes_trunc.mat"
+    load_file=dir*add_path_kan*"checkpoints/"*fname*"_results_reg1e_5_prune_results.mat"
 elseif is_pruned==false
     load_file=dir*add_path_kan*"checkpoints/"*fname*"_results.mat"
 end
@@ -97,7 +99,7 @@ tspan = (0.0, 14)
 tspan_train=(0.0, 3.5)
 u0 = [1, 1]
 p_ = Float32[1.5, 1, 1, 3]
-prob = ODEProblem(lotka!, u0, tspan, p_)
+prob = ODEProblem(CSTR!, u0, tspan, p_)
 solution = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
 end_index=Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
 t = solution.t #full dataset
@@ -310,7 +312,7 @@ png(plt, string(dir*add_path, "contour_compare/ydot_mlp.png"))
 #This code is not general, and expects a KANODE with a size of [2, 3, 5], [3, 2, 5]
 #i.e., 6 activations per layer, and 2 layers.
 #We have included a pretrained pruned KANODE checkpoint in the results_kanode/checkpoints folder.
-#Replacing LV_kanode_results.mat with LV_kanode_results_pruned_3nodes.mat will load this pruned KANODE,
+#Replacing rbf_results.mat with rbf_results_pruned_3nodes.mat will load this pruned KANODE,
 #with which the below code can be uncommented and run.
 #########################################
 
@@ -341,6 +343,10 @@ end
 activations_x_symb=symb_acts[:, 1:3]
 activations_y_symb=symb_acts[:, 4:6]
 activations_second_symb=symb_acts[:, 7:12]'
+
+activations_x_symb=activations_x
+activations_y_symb=activations_y
+activations_second_symb=activations_second'
 
 ##########Finally, generate the subfigures for Fig. 4(A-B)
 

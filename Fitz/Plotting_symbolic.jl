@@ -54,40 +54,43 @@ using .KolmogorovArnold
 include("Activation_getter.jl")
 
 ##########same initializtion as in the KANODE driver##########
-function lotka!(du, u, p, t)
-    α, β, γ, δ = p
-    du[1] = α * u[1] - β * u[2] * u[1]
-    du[2] = γ * u[1] * u[2] - δ * u[2]
-end
+function Fitz!(du, u, p, t)
 
+    v, w = u
+    α, β, γ, δ = p
+    du[1] = v - v^3 - w + 0.328
+    du[2] = 0.08 * (v - 0.8 * w + 0.7)
+
+end
 
 function LV(u, p)
     α, β, γ, δ = p
     du = [α * u[1] - β * u[2] * u[1], γ * u[1] * u[2] - δ * u[2]]
     return du
 end
+
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "LV_kanode"
-fname_mlp       = "LV_MLP"
-add_path    = "post_plots/"
+fname           = "rbf_sparse_prune_results"
+fname_mlp       = "mlp_results_MLP"
+add_path        = "post_plots/"
 add_path_kan    = "results_kanode/"
 add_path_mlp    = "results_mlp/"
 figpath=dir*add_path*"figs"
 mkpath(figpath)
 
-is_pruned=false #CHANGE THIS IF PLOTTING DENSE OR SPARSE KAN CONTOURS
+is_pruned=true #CHANGE THIS IF PLOTTING DENSE OR SPARSE KAN CONTOURS
 #true=sparse kan plotting (pretrained checkpoint provided, see load_file below)
 #false=dense kan plotting
-loss_minimum_truncation=5000
+loss_minimum_truncation=1
 
 if is_pruned==true
-    load_file=dir*add_path_kan*"checkpoints/"*fname*"_results_pruned_3nodes_trunc.mat"
+    load_file=dir*add_path_kan*"checkpoints/"*fname*".mat"
 elseif is_pruned==false
     load_file=dir*add_path_kan*"checkpoints/"*fname*"_results.mat"
 end
-load_file_mlp=dir*add_path_mlp*"checkpoints/"*fname_mlp*"_results_MLP.mat"
+load_file_mlp=dir*add_path_mlp*"checkpoints/"*fname_mlp*".mat"
 
 timestep=0.1
 n_plot_save=100
@@ -97,7 +100,7 @@ tspan = (0.0, 14)
 tspan_train=(0.0, 3.5)
 u0 = [1, 1]
 p_ = Float32[1.5, 1, 1, 3]
-prob = ODEProblem(lotka!, u0, tspan, p_)
+prob = ODEProblem(Fitz!, u0, tspan, p_)
 solution = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
 end_index=Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
 t = solution.t #full dataset
@@ -340,7 +343,11 @@ end
 
 activations_x_symb=symb_acts[:, 1:3]
 activations_y_symb=symb_acts[:, 4:6]
-activations_second_symb=symb_acts[:, 7:12]'
+activations_second_symb=symb_acts[:, 7:12]
+
+activations_x_symb=activations_x
+activations_y_symb=activations_y
+activations_second_symb=activations_second
 
 ##########Finally, generate the subfigures for Fig. 4(A-B)
 

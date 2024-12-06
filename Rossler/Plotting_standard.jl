@@ -26,12 +26,18 @@ using .KolmogorovArnold
 include("Activation_getter.jl")
 
 ##########same initializtion as in the KANODE driver##########
-function lotka!(du, u, p, t)
-    α, β, γ, δ = p
-    du[1] = α * u[1] - β * u[2] * u[1]
-    du[2] = γ * u[1] * u[2] - δ * u[2]
-end
+function rossler!(du, u, p, t)
 
+    x, y, z = u
+    # Standard parameters for rossler attractor
+
+    σ, ρ, β = p
+
+    # rossler system equations
+    du[1] = -y - z
+    du[2] = x + 0.5 * y
+    du[3] = 2 + z * (x - 4)
+end
 
 function LV(u, p)
     α, β, γ, δ = p
@@ -51,9 +57,9 @@ rng = Random.default_rng()
 Random.seed!(rng, 0)
 tspan = (0.0, 14)
 tspan_train=(0.0, 3.5)
-u0 = [1, 1]
+u0 = [1, 1, 1]
 p_ = Float32[1.5, 1, 1, 3]
-prob = ODEProblem(lotka!, u0, tspan, p_)
+prob = ODEProblem(rossler!, u0, tspan, p_)
 solution = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
 end_index=Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
 t = solution.t #full dataset
@@ -63,8 +69,8 @@ X = Array(solution)
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "LV_kanode"
-fname_mlp       = "LV_MLP"
+fname       = "rbf"
+fname_mlp       = "mlp"
 add_path    = "post_plots/"
 add_path_kan    = "results_kanode/"
 add_path_mlp    = "results_mlp/"
@@ -92,8 +98,8 @@ grid_size=size_kan[3]
 basis_func = rbf      
 normalizer = tanh_fast 
 kan1 = Lux.Chain(
-    KDense( 2, layer_width, grid_size; use_base_act = true, basis_func, normalizer),
-    KDense(layer_width,  2, grid_size; use_base_act = true, basis_func, normalizer),
+    KDense( 3, layer_width, grid_size; use_base_act = true, basis_func, normalizer),
+    KDense(layer_width,  3, grid_size; use_base_act = true, basis_func, normalizer),
 )
 
 pM , stM  = Lux.setup(rng, kan1) 
@@ -101,7 +107,7 @@ pM_data = getdata(ComponentArray(pM))
 pM_axis = getaxes(ComponentArray(pM))
 
 ##more loading and processing
-param_count_prune=layer_width*grid_size*2*2+2*layer_width*2
+param_count_prune=layer_width*grid_size*2*3+2*layer_width*3
 l_min=minimum(loss_list_kan)
 if is_pruned
     l_min=minimum(loss_list_kan[loss_minimum_truncation:end])
@@ -112,7 +118,7 @@ pM_    = ComponentArray(p_curr,pM_axis)
 pM_new = [pM_.layer_1, pM_.layer_2]
 
 #this calls the code from Activation_getter.jl to compute the individual activation function values (rather than the matrix multiplied outputs):
-activations_x, activations_y, activations_second, LV_samples_lay1, lay2, K=activation_getter(pM_, pM_new, kan1, grid_size)
+activations_x, activations_y, activations_z, activations_second, LV_samples_lay1, lay2, K=activation_getter_3x3(pM_, pM_new, kan1, grid_size)
 
 
 xsort=sortperm(X[1, :])
@@ -141,14 +147,17 @@ p_curr = p_list[idx_min,1:param_count_prune,1]
 train_node_ = NeuralODE(kan1, tspan, Tsit5(), saveat = timestep); #neural ode
 pred_sol_kan = train_node_(u0, ComponentArray(p_curr,pM_axis), stM)[1]
 
-plt=scatter(solution.t[1:end_index],reduce(hcat,solution.u)'[1:end_index, 1], margin=3Plots.mm, legend=(0.6,0.97), alpha = 0.75, label = "Train x",ylims=(0,10),dpi=1000,size=(475, 200), grid=false, color=:mediumseagreen)
+plt=scatter(solution.t[1:end_index],reduce(hcat,solution.u)'[1:end_index, 1], margin=3Plots.mm, legend=(0.6,0.97), alpha = 0.75, label = "Train x",ylims=(-10,10),dpi=1000,size=(475, 200), grid=false, color=:mediumseagreen)
 scatter!(solution.t[1:end_index], reduce(hcat,solution.u)'[1:end_index, 2], alpha = 0.75, label = "Train y", markershape=:pentagon, color=:cornflowerblue)
 
 plot!(pred_sol_kan.t, reduce(hcat,pred_sol_kan.u)'[:, 2], linewidth=2, label="KAN-ODE y", color=:midnightblue)
 plot!(pred_sol_kan.t, reduce(hcat,pred_sol_kan.u)'[:, 1], linewidth=2, label="KAN-ODE x", color=:darkgreen)
+plot!(pred_sol_kan.t, reduce(hcat,pred_sol_kan.u)'[:, 3], linewidth=2, label="KAN-ODE z", color=:crimson)
 
 plot!(solution.t[end_index+1:end],reduce(hcat,solution.u)'[end_index+1:end, 1],  label = "Test x", linestyle=:dot, color=:mediumseagreen, linewidth=3, thickness_scaling = 1)
 plot!(solution.t[end_index+1:end], reduce(hcat,solution.u)'[end_index+1:end, 2],  label = "Test y", linestyle=:dot, color=:cornflowerblue, linewidth=3, thickness_scaling = 1)
+plot!(solution.t[end_index+1:end], reduce(hcat,solution.u)'[end_index+1:end, 3],  label = "Test z", linestyle=:dot, color=:cornflowerblue, linewidth=3, thickness_scaling = 1)
+
 vline!([3.5], color=:darkorange1, label = "Train/test split", legend_columns=2, linewidth=2, thickness_scaling = 1, linestyle=:dot)
 xlabel!("Time [s]")
 ylabel!("x,y ")

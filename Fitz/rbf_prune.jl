@@ -28,7 +28,7 @@ sparse_on=1 #set this to 1 and see reg_loss() and prune() functions if sparsity 
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "rbf_sparse"
+fname       = "reg3_for_pruning"
 add_path    = "results_kanode/"
 figpath=dir*add_path*"figs"
 ckptpath=dir*add_path*"checkpoints"
@@ -167,7 +167,7 @@ pM_axis = getaxes(ComponentArray(pM))
 ###then restart the driver with is_restart=true, and is_prune=true
 ###and when re-initializing, the below snippet will run pruning. 
 if is_prune==true
-    pM, kan1, layer_width=prune(p, kan1, layer_width, grid_size, pM_axis, 1e-4)
+    pM, kan1, layer_width=prune(p, kan1, layer_width, grid_size, pM_axis, 0.025)
 end
 
 
@@ -198,7 +198,7 @@ end
 function loss(p)
     loss_temp=mean(abs2, Xn[:, 1:end_index].- predict(ComponentArray(p,pM_axis)))
     if sparse_on==1
-        loss_temp+=reg_loss(p, 5e-4, 0) #if we have sparsity enabled, add the reg loss
+        loss_temp+=reg_loss(p, 1e-5, 0) #if we have sparsity enabled, add the reg loss
     end
     return loss_temp
 end

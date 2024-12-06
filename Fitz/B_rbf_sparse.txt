@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=Fitz_rbf                        # Job name
-#SBATCH --output=slurm_archive/%j_Fitz_rbf_sparse.out      # Standard output file
-#SBATCH --error=slurm_archive/%j_Fitz_rbf_sparse.err       # Standard error file
+#SBATCH --output=slurm_archive/%j_Fitz_rbf_sparse_regL2.out      # Standard output file
+#SBATCH --error=slurm_archive/%j_Fitz_rbf_sparse_RegL2.err       # Standard error file
 #SBATCH --nodes=1                    # Number of nodes
 #SBATCH --ntasks=1                   # Number of tasks
 #SBATCH --cpus-per-task=4            # CPUs per task

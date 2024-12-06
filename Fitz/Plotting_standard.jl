@@ -26,12 +26,15 @@ using .KolmogorovArnold
 include("Activation_getter.jl")
 
 ##########same initializtion as in the KANODE driver##########
-function lotka!(du, u, p, t)
-    α, β, γ, δ = p
-    du[1] = α * u[1] - β * u[2] * u[1]
-    du[2] = γ * u[1] * u[2] - δ * u[2]
-end
 
+function Fitz!(du, u, p, t)
+
+    v, w = u
+    α, β, γ, δ = p
+    du[1] = v - v^3 - w + 0.328
+    du[2] = 0.08 * (v - 0.8 * w + 0.7)
+
+end
 
 function LV(u, p)
     α, β, γ, δ = p
@@ -53,7 +56,7 @@ tspan = (0.0, 14)
 tspan_train=(0.0, 3.5)
 u0 = [1, 1]
 p_ = Float32[1.5, 1, 1, 3]
-prob = ODEProblem(lotka!, u0, tspan, p_)
+prob = ODEProblem(Fitz!, u0, tspan, p_)
 solution = solve(prob, Tsit5(), abstol = 1e-12, reltol = 1e-12, saveat = timestep)
 end_index=Int64(floor(length(solution.t)*tspan_train[2]/tspan[2]))
 t = solution.t #full dataset
@@ -63,8 +66,8 @@ X = Array(solution)
 dir         = @__DIR__
 dir         = dir*"/"
 cd(dir)
-fname       = "LV_kanode"
-fname_mlp       = "LV_MLP"
+fname       = "rbf"
+fname_mlp       = "mlp"
 add_path    = "post_plots/"
 add_path_kan    = "results_kanode/"
 add_path_mlp    = "results_mlp/"
@@ -141,7 +144,7 @@ p_curr = p_list[idx_min,1:param_count_prune,1]
 train_node_ = NeuralODE(kan1, tspan, Tsit5(), saveat = timestep); #neural ode
 pred_sol_kan = train_node_(u0, ComponentArray(p_curr,pM_axis), stM)[1]
 
-plt=scatter(solution.t[1:end_index],reduce(hcat,solution.u)'[1:end_index, 1], margin=3Plots.mm, legend=(0.6,0.97), alpha = 0.75, label = "Train x",ylims=(0,10),dpi=1000,size=(475, 200), grid=false, color=:mediumseagreen)
+plt=scatter(solution.t[1:end_index],reduce(hcat,solution.u)'[1:end_index, 1], margin=3Plots.mm, legend=(0.6,0.97), alpha = 0.75, label = "Train x",ylims=(-10,10),dpi=1000,size=(475, 200), grid=false, color=:mediumseagreen)
 scatter!(solution.t[1:end_index], reduce(hcat,solution.u)'[1:end_index, 2], alpha = 0.75, label = "Train y", markershape=:pentagon, color=:cornflowerblue)
 
 plot!(pred_sol_kan.t, reduce(hcat,pred_sol_kan.u)'[:, 2], linewidth=2, label="KAN-ODE y", color=:midnightblue)
