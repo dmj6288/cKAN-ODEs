@@ -1,5 +1,9 @@
 # KAN-ODEs
-The code is associated with the paper entitled "KAN-ODEs: Kolmogorov-Arnold Network Ordinary Differential Equations for Learning Dynamical Systems and Hidden Physics" ([CMAME](https://www.sciencedirect.com/science/article/pii/S0045782524006522), [Arxiv](https://arxiv.org/abs/2407.04192)).
+The code is associated with the paper entitled "KAN-ODEs: Kolmogorov-Arnold Network Ordinary Differential Equations for Learning Dynamical Systems and Hidden Physics" ([CMAME](https://www.sciencedirect.com/science/article/pii/S0045782524006522), [Arxiv](https://arxiv.org/abs/2407.04192)). This repository investigates the performance of KAN-ODEs for rational functions commonly found in biological systems to obtain interpretable models of a Monod-type continously stirred bioreactor
+
+# CSTR_monod
+
+Please find the sources codes in the folder "CSTR_monod".
 
 # Lotka-Volterra
 
